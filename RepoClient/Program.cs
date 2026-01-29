@@ -17,7 +17,7 @@ namespace RepoClient
             Console.Write("Unesi korisnicko ime: ");
             string username = Console.ReadLine().Trim();
 
-            // 1) UDP prijava
+            
             int tcpPort = UDPPrijava(username);
             if (tcpPort <= 0)
             {
@@ -26,7 +26,6 @@ namespace RepoClient
                 return;
             }
 
-            // 2) TCP konekcija
             Socket tcp = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             IPEndPoint serverEP = new IPEndPoint(IPAddress.Loopback, tcpPort);
 
@@ -74,25 +73,67 @@ namespace RepoClient
                 }
                 else if (izbor == "2")
                 {
-                    z.Operacija = Operacija.Izmena;
                     Console.Write("Unesi naziv datoteke: ");
                     string naziv = Console.ReadLine().Trim();
 
-                    Console.WriteLine("Unesi sadrzaj (jedna linija):");
-                    string sadrzaj = Console.ReadLine();
-
-                    z.Putanja = naziv;
-                    z.Datoteka = new Datoteka
+                    // 1) LOCK faza (trazimo datoteku za izmenu)
+                    Zahtev lockReq = new Zahtev
                     {
-                        Naziv = naziv,
-                        Autor = username,
-                        PoslednjaPromena = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                        Sadrzaj = sadrzaj
+                        KlijentKorisnickoIme = username,
+                        Vreme = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                        Operacija = Operacija.Izmena,
+                        Putanja = naziv,
+                        Datoteka = null
                     };
 
-                    object resp = PosaljiIPrihvati(tcp, z);
-                    PrikaziOdgovor(resp);
+                    object lockRespObj = PosaljiIPrihvati(tcp, lockReq);
+
+                    if (!(lockRespObj is Odgovor lockResp))
+                    {
+                        Console.WriteLine("Neocekivan odgovor servera.");
+                        continue;
+                    }
+
+                    Console.WriteLine(lockResp.ToString());
+
+                
+                    if (!lockResp.Uspeh)
+                        continue;
+
+              
+                    Datoteka trenutna = lockResp.Datoteka;
+                    if (trenutna == null)
+                    {
+                        Console.WriteLine("Server nije vratio datoteku.");
+                        continue;
+                    }
+
+                    Console.WriteLine("\n--- Trenutni sadrzaj ---");
+                    Console.WriteLine(trenutna.Sadrzaj);
+
+                    Console.WriteLine("\nUnesi NOVI sadrzaj (jedna linija):");
+                    string noviSadrzaj = Console.ReadLine();
+
+             
+                    Zahtev commitReq = new Zahtev
+                    {
+                        KlijentKorisnickoIme = username,
+                        Vreme = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                        Operacija = Operacija.Izmena,
+                        Putanja = naziv,
+                        Datoteka = new Datoteka
+                        {
+                            Naziv = naziv,
+                            Autor = username,
+                            PoslednjaPromena = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                            Sadrzaj = noviSadrzaj
+                        }
+                    };
+
+                    object commitRespObj = PosaljiIPrihvati(tcp, commitReq);
+                    PrikaziOdgovor(commitRespObj);
                 }
+
                 else if (izbor == "3")
                 {
                     z.Operacija = Operacija.Uklanjanje;
