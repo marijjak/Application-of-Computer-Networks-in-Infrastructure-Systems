@@ -76,7 +76,7 @@ namespace RepoClient
                     Console.Write("Unesi naziv datoteke: ");
                     string naziv = Console.ReadLine().Trim();
 
-                    // 1) LOCK faza (trazimo datoteku za izmenu)
+                
                     Zahtev lockReq = new Zahtev
                     {
                         KlijentKorisnickoIme = username,
